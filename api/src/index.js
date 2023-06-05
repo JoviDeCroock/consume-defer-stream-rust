@@ -1,6 +1,22 @@
 import { createServer } from 'node:http'
 import { createSchema, createYoga } from 'graphql-yoga'
 import { useDeferStream } from '@graphql-yoga/plugin-defer-stream'
+
+const typeDefs = /* GraphQL */ `
+  type Query {
+    alphabet: [String!]!
+    """
+    A field that resolves fast.
+    """
+    fastField: String!
+ 
+    """
+    A field that resolves slowly.
+    Maybe you want to @defer this field ;)
+    """
+    slowField(waitFor: Int! = 5000): String
+  }
+`
  
 const wait = (time) =>
   new Promise((resolve) => setTimeout(resolve, time))
