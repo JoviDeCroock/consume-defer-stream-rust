@@ -1,0 +1,17 @@
+{
+  "name": "consume-defer-stream-rust",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@graphql-yoga/plugin-defer-stream": "^2.0.0",
+    "graphql": "^16.6.0",
+    "graphql-yoga": "^4.0.0"
+  }
+}
