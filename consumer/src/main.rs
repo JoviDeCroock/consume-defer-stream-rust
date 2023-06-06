@@ -9,11 +9,36 @@ enum GraphQLResult {
     StreamedExecutionResult(StreamedExecutionResult),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct ExecutionResult {
     data: Value,
     // TODO: error
     hasNext: bool,
+}
+
+impl ExecutionResult {
+    fn merge(&mut self, streamed_result: StreamedExecutionResult) -> &mut Self {
+        streamed_result.incremental.iter().for_each(|incremental_payload| {
+            match incremental_payload {
+                IncrementalPayload::DeferPayload(payload) => {
+                    if payload.path.len() == 0 {
+                        let deferred_data = payload.data.as_object().unwrap();
+                        deferred_data.keys().for_each(|key| {
+                            let value = deferred_data.get(key).expect("Key to be present");
+                            self.data.as_object().unwrap().insert(key.to_owned(), value.to_owned());
+                        });
+                    } else {
+
+                    }
+                }
+                IncrementalPayload::StreamPayload(payload) => {
+                    
+                }
+            }
+        });
+
+        self
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,7 +51,7 @@ enum IncrementalPayload {
 #[derive(Debug, Deserialize)]
 struct StreamedExecutionResult {
     hasNext: bool,
-    incremental: Vec<DeferPayload>
+    incremental: Vec<IncrementalPayload>
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,6 +83,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .send()
         .await?;
 
+    let mut inital_response = None;
     while let Some(chunk) = resp.chunk().await? {
         let payload = String::from_utf8(chunk.to_vec()).ok().unwrap_or_default();
         if payload.contains("event: next") {
@@ -67,9 +93,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             match json {
                 Ok(GraphQLResult::ExecutionResult(val)) => {
                     println!("Got initial result {:?}", val);
+                    inital_response = Some(val);
                 },
                 Ok(GraphQLResult::StreamedExecutionResult(val)) => {
                     println!("Got streamed result {:?}", val);
+                    inital_response = Some(inital_response.clone().unwrap().merge(val).to_owned());
                 }
                 Err(err) => {
                     println!("failed to parese {} {:?}", chunk, err);
