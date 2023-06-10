@@ -34,7 +34,7 @@ impl ExecutionResult {
     }
 
     // TODO: error-support and merging errors
-    pub fn merge(&mut self, streamed_result: StreamedExecutionResult) -> &mut Self {
+    pub fn merge(&mut self, streamed_result: &StreamedExecutionResult) -> &mut Self {
         streamed_result.incremental.iter().for_each(|incremental_payload| {
             match incremental_payload {
                 IncrementalPayload::DeferPayload(payload) => {
@@ -85,7 +85,7 @@ enum IncrementalPayload {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamedExecutionResult {
-    has_next: bool,
+    pub has_next: bool,
     incremental: Vec<IncrementalPayload>
 }
 

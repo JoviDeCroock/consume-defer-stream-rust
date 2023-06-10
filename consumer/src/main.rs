@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let chunk = if response_content_type.contains("text/event-stream") {
             parse_text_event_stream_chunk(payload)
         } else if response_content_type.contains("multipart/mixed") {
-            parse_multipart_stream_chunk(payload)
+            parse_multipart_stream_chunk(payload, response_content_type)
         } else {
             parse_application_json_chunk(payload)
         };
@@ -45,10 +45,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         final_result = Some(val);
                     },
                     Ok(GraphQLResult::StreamedExecutionResult(val)) => {
-                        final_result = Some(final_result.clone().unwrap().merge(val).to_owned());
+                        final_result = Some(final_result.clone().unwrap().merge(&val).to_owned());
+                        if !val.has_next {
+                            final_result = Some(final_result.clone().unwrap().finalize().to_owned());
+                        }
                     }
                     Err(err) => {
-                        println!("failed to parese {} {:?}", chunk.payload, err);
+                        println!("failed to parse {} {:?}", chunk.payload, err);
                     }
                 }
             },
@@ -57,7 +60,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             },
         }
     }
-    println!("final result: {:?}", &final_result.unwrap().data);
+    println!("final result for query containing defer: {:?}", &final_result.unwrap().data);
 
     let body = r#"{
         "query": "query { alphabet @stream }"
@@ -78,7 +81,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let chunk = if response_content_type.contains("text/event-stream") {
             parse_text_event_stream_chunk(payload)
         } else if response_content_type.contains("multipart/mixed") {
-            parse_multipart_stream_chunk(payload)
+            parse_multipart_stream_chunk(payload, response_content_type)
         } else {
             parse_application_json_chunk(payload)
         };
@@ -91,7 +94,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         final_result = Some(val);
                     },
                     Ok(GraphQLResult::StreamedExecutionResult(val)) => {
-                        final_result = Some(final_result.clone().unwrap().merge(val).to_owned());
+                        final_result = Some(final_result.clone().unwrap().merge(&val).to_owned());
+                        if !val.has_next {
+                            final_result = Some(final_result.clone().unwrap().finalize().to_owned());
+                        }
                     }
                     Err(err) => {
                         println!("failed to parse {} {:?}", chunk.payload, err);
@@ -103,7 +109,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             },
         }
     }
-    println!("final result: {:?}", &final_result.unwrap().data);
+    println!("final result for query containing stream: {:?}", &final_result.unwrap().data);
 
     Ok(())
 }
