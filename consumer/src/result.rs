@@ -12,12 +12,11 @@ pub enum GraphQLResult {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionResult {
-    data: Value,
-    // TODO: error
+    pub data: Value,
     has_next: bool,
 }
 
-fn merge_path(path: &Vec<Value>) -> String {
+fn merge_path(path: &[Value]) -> String {
     path.iter().fold(String::new(),|a, b| {
         if a.is_empty() {
             b.to_string().replace('"', "")

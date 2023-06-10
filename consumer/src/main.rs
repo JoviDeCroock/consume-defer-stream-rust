@@ -1,14 +1,13 @@
 mod result;
+mod parse;
 
 use std::{error::Error};
 
-use crate::result::GraphQLResult;
+use crate::{result::GraphQLResult, parse::{parse_text_event_stream_chunk, StreamState, parse_multipart_stream_chunk, parse_application_json_chunk}};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // TODO: delimiter based chunking for multipart vs text/event-stream
-    // TODO: handle normal results as well
-    // TODO: base handling on the response-content-type
     // let mode = "multipart/mixed";
     // let mode = "application/json";
     let mode = "text/event-stream";
@@ -25,32 +24,40 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .send()
         .await?;
 
+    let headers = resp.headers().clone();
+    let response_content_type = headers.get("Content-Type").unwrap().to_str().ok().unwrap();
     let mut final_result = None;
     while let Some(chunk) = resp.chunk().await? {
         let payload = String::from_utf8(chunk.to_vec()).ok().unwrap_or_default();
-        if payload.contains("event: next") {
-            let parts = payload.split("data: ").collect::<Vec<&str>>();
-            let chunk = parts.get(1).unwrap().replace("\n\n", "");
-            let json = serde_json::from_str::<GraphQLResult>(&chunk);
-            match json {
-                Ok(GraphQLResult::ExecutionResult(val)) => {
-                    println!("Got initial result {:?}", val);
-                    final_result = Some(val);
-                },
-                Ok(GraphQLResult::StreamedExecutionResult(val)) => {
-                    println!("Got streamed result {:?}", val);
-                    final_result = Some(final_result.clone().unwrap().merge(val).to_owned());
-                }
-                Err(err) => {
-                    println!("failed to parese {} {:?}", chunk, err);
-                
-                }
-            }
+        let chunk = if response_content_type.contains("text/event-stream") {
+            parse_text_event_stream_chunk(payload)
+        } else if response_content_type.contains("multipart/mixed") {
+            parse_multipart_stream_chunk(payload)
         } else {
-            final_result = Some(final_result.clone().unwrap().finalize().to_owned());
+            parse_application_json_chunk(payload)
+        };
+
+        match chunk.state {
+            StreamState::InProgress => {
+                let json = serde_json::from_str::<GraphQLResult>(&chunk.payload);
+                match json {
+                    Ok(GraphQLResult::ExecutionResult(val)) => {
+                        final_result = Some(val);
+                    },
+                    Ok(GraphQLResult::StreamedExecutionResult(val)) => {
+                        final_result = Some(final_result.clone().unwrap().merge(val).to_owned());
+                    }
+                    Err(err) => {
+                        println!("failed to parese {} {:?}", chunk.payload, err);
+                    }
+                }
+            },
+            StreamState::Final => {
+                final_result = Some(final_result.clone().unwrap().finalize().to_owned());
+            },
         }
     }
-    println!("final result: {:?}", &final_result);
+    println!("final result: {:?}", &final_result.unwrap().data);
 
     let body = r#"{
         "query": "query { alphabet @stream }"
@@ -63,32 +70,40 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .send()
         .await?;
 
+    let headers = resp.headers().clone();
+    let response_content_type = headers.get("Content-Type").unwrap().to_str().ok().unwrap();
     let mut final_result = None;
     while let Some(chunk) = resp.chunk().await? {
         let payload = String::from_utf8(chunk.to_vec()).ok().unwrap_or_default();
-        println!("{}", payload);
-        if payload.contains("event: next") {
-            let parts = payload.split("data: ").collect::<Vec<&str>>();
-            let chunk = parts.get(1).unwrap().replace("\n\n", "");
-            let json = serde_json::from_str::<GraphQLResult>(&chunk);
-            match json {
-                Ok(GraphQLResult::ExecutionResult(val)) => {
-                    println!("Got initial result {:?}", val);
-                    final_result = Some(val);
-                },
-                Ok(GraphQLResult::StreamedExecutionResult(val)) => {
-                    println!("Got streamed result {:?}", val);
-                    final_result = Some(final_result.clone().unwrap().merge(val).to_owned());
-                }
-                Err(err) => {
-                    println!("failed to parese {} {:?}", chunk, err);
-                }
-            }
+        let chunk = if response_content_type.contains("text/event-stream") {
+            parse_text_event_stream_chunk(payload)
+        } else if response_content_type.contains("multipart/mixed") {
+            parse_multipart_stream_chunk(payload)
         } else {
-            final_result = Some(final_result.clone().unwrap().finalize().to_owned());
+            parse_application_json_chunk(payload)
+        };
+
+        match chunk.state {
+            StreamState::InProgress => {
+                let json = serde_json::from_str::<GraphQLResult>(&chunk.payload);
+                match json {
+                    Ok(GraphQLResult::ExecutionResult(val)) => {
+                        final_result = Some(val);
+                    },
+                    Ok(GraphQLResult::StreamedExecutionResult(val)) => {
+                        final_result = Some(final_result.clone().unwrap().merge(val).to_owned());
+                    }
+                    Err(err) => {
+                        println!("failed to parse {} {:?}", chunk.payload, err);
+                    }
+                }
+            },
+            StreamState::Final => {
+                final_result = Some(final_result.clone().unwrap().finalize().to_owned());
+            },
         }
     }
-    println!("final result: {:?}", &final_result);
+    println!("final result: {:?}", &final_result.unwrap().data);
 
     Ok(())
 }
