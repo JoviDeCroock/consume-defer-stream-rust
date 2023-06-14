@@ -35,6 +35,12 @@ fn merge(a: &mut Value, b: Value) {
                 merge(a.entry(k).or_insert(Value::Null), v);
             }
         }
+        (a @ &mut Value::Array(_), Value::Array(b)) => {
+            let a = a.as_array_mut().unwrap();
+            for (k, v) in b.iter().enumerate() {
+                merge(a.get_mut(k).unwrap_or(&mut Value::Null), v.clone());
+            }
+        }
         (a, b) => *a = b,
     }
 }
