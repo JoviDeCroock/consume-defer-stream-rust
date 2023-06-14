@@ -21,7 +21,10 @@ pub fn parse_text_event_stream_chunk(chunk: String) -> StreamedChunk {
 
     let payload = if state == StreamState::InProgress {
         let parts = chunk.split("data: ").collect::<Vec<&str>>();
-        parts.get(1).unwrap().replace("\n\n", "")
+        parts
+            .get(1)
+            .expect("data to be present on an event: next")
+            .replace("\n\n", "")
     } else {
         String::default()
     };
@@ -30,7 +33,7 @@ pub fn parse_text_event_stream_chunk(chunk: String) -> StreamedChunk {
 }
 
 pub fn parse_multipart_stream_chunk(chunk: String, content_type: &str) -> StreamedChunk {
-    let re: Regex = Regex::new(r#"boundary="?([^=";]+)"?"#).unwrap();
+    let re: Regex = Regex::new(r#"boundary="?([^=";]+)"?"#).expect("This to be a valid regex");
     let res = re.captures(content_type);
 
     let boundary = if let Some(captures) = res {

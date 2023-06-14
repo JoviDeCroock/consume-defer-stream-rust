@@ -31,7 +31,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .await?;
 
     let headers = resp.headers().clone();
-    let response_content_type = headers.get("Content-Type").unwrap().to_str().ok().unwrap();
+    let response_content_type = headers
+        .get("Content-Type")
+        .expect("content-type to be present")
+        .to_str()
+        .expect("content-type to be a valid string");
     let mut final_result = None;
     while let Some(chunk) = resp.chunk().await? {
         let payload = String::from_utf8(chunk.to_vec()).ok().unwrap_or_default();
@@ -55,10 +59,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         final_result = Some(val);
                     }
                     Ok(GraphQLResult::StreamedExecutionResult(val)) => {
-                        final_result = Some(final_result.clone().unwrap().merge(&val).to_owned());
+                        final_result = Some(final_result.clone().expect("final result to be defined as we first see an execution-result").merge(&val).to_owned());
                         if !val.has_next {
                             final_result =
-                                Some(final_result.clone().unwrap().finalize().to_owned());
+                                Some(final_result.clone().expect("final result to be defined as we first see an execution-result").finalize().to_owned());
                         }
                     }
                     Err(err) => {
@@ -67,13 +71,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             StreamState::Final => {
-                final_result = Some(final_result.clone().unwrap().finalize().to_owned());
+                final_result = Some(
+                    final_result
+                        .clone()
+                        .expect("final result to be defined as we first see an execution-result")
+                        .finalize()
+                        .to_owned(),
+                );
             }
         }
     }
     println!(
         "final result for query containing defer: {:?}",
-        &final_result.unwrap()
+        &final_result.expect("A result to be present")
     );
 
     let body = r#"{
@@ -89,7 +99,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .await?;
 
     let headers = resp.headers().clone();
-    let response_content_type = headers.get("Content-Type").unwrap().to_str().ok().unwrap();
+    let response_content_type = headers
+        .get("Content-Type")
+        .expect("content-type to be present")
+        .to_str()
+        .expect("content-type to be a valid string");
     let mut final_result = None;
     while let Some(chunk) = resp.chunk().await? {
         let payload = String::from_utf8(chunk.to_vec()).ok().unwrap_or_default();
@@ -113,10 +127,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         final_result = Some(val);
                     }
                     Ok(GraphQLResult::StreamedExecutionResult(val)) => {
-                        final_result = Some(final_result.clone().unwrap().merge(&val).to_owned());
+                        final_result = Some(final_result.clone().expect("final result to be defined as we first see an execution-result").merge(&val).to_owned());
                         if !val.has_next {
                             final_result =
-                                Some(final_result.clone().unwrap().finalize().to_owned());
+                                Some(final_result.clone().expect("final result to be defined as we first see an execution-result").finalize().to_owned());
                         }
                     }
                     Err(err) => {
@@ -125,13 +139,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             StreamState::Final => {
-                final_result = Some(final_result.clone().unwrap().finalize().to_owned());
+                final_result = Some(
+                    final_result
+                        .clone()
+                        .expect("final result to be defined as we first see an execution-result")
+                        .finalize()
+                        .to_owned(),
+                );
             }
         }
     }
     println!(
         "final result for query containing stream: {:?}",
-        &final_result.unwrap()
+        &final_result.expect("A result to be present")
     );
 
     Ok(())

@@ -30,13 +30,17 @@ fn merge_path(path: &[Value]) -> String {
 fn merge(a: &mut Value, b: Value) {
     match (a, b) {
         (a @ &mut Value::Object(_), Value::Object(b)) => {
-            let a = a.as_object_mut().unwrap();
+            let a = a
+                .as_object_mut()
+                .expect("A mutable object reference to be obtainable for a Map");
             for (k, v) in b {
                 merge(a.entry(k).or_insert(Value::Null), v);
             }
         }
         (a @ &mut Value::Array(_), Value::Array(b)) => {
-            let a = a.as_array_mut().unwrap();
+            let a = a
+                .as_array_mut()
+                .expect("A mutable object reference to be obtainable for an Array");
             for (k, v) in b.iter().enumerate() {
                 merge(a.get_mut(k).unwrap_or(&mut Value::Null), v.clone());
             }
@@ -59,7 +63,8 @@ impl ExecutionResult {
                 .for_each(|incremental_payload| match incremental_payload {
                     IncrementalPayload::DeferPayload(payload) => {
                         if payload.path.is_empty() {
-                            let deferred_data = payload.data.as_object().unwrap();
+                            let deferred_data =
+                                payload.data.as_object().expect("data to be an object");
 
                             if let Value::Object(obj) = &self.data {
                                 let mut execution_data = obj.clone();
@@ -95,7 +100,13 @@ impl ExecutionResult {
                             let mut execution_data = obj.clone();
                             let path = merge_path(&payload.path);
 
-                            let _ = execution_data.dot_set(&path, payload.items.get(0).unwrap());
+                            let _ = execution_data.dot_set(
+                                &path,
+                                payload
+                                    .items
+                                    .get(0)
+                                    .expect("the items array to carry an item"),
+                            );
                             self.data = Value::Object(execution_data);
                         }
 
