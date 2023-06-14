@@ -13,7 +13,7 @@ use crate::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mode = "multipart/mixed";
+    // let mode = "multipart/mixed";
     // let mode = "application/json";
     let mode = "text/event-stream";
     let client = reqwest::Client::new();
