@@ -1,3 +1,5 @@
+use regex::Regex;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum StreamState {
     Final,
@@ -27,39 +29,49 @@ pub fn parse_text_event_stream_chunk(chunk: String) -> StreamedChunk {
     StreamedChunk { state, payload }
 }
 
-// async function* parseMultipartMixed(
-//     contentType: string,
-//     response: Response
-//   ): AsyncIterableIterator<ExecutionResult> {
-//     const boundaryHeader = contentType.match(boundaryHeaderRe);
-//     const boundary = '--' + (boundaryHeader ? boundaryHeader[1] : '-');
-//     let isPreamble = true;
-//     let payload: any;
-//     for await (let chunk of split(streamBody(response), '\r\n' + boundary)) {
-//       if (isPreamble) {
-//         isPreamble = false;
-//         const preambleIndex = chunk.indexOf(boundary);
-//         if (preambleIndex > -1) {
-//           chunk = chunk.slice(preambleIndex + boundary.length);
-//         } else {
-//           continue;
-//         }
-//       }
-//       try {
-//         yield (payload = JSON.parse(chunk.slice(chunk.indexOf('\r\n\r\n') + 4)));
-//       } catch (error) {
-//         if (!payload) throw error;
-//       }
-//       if (payload && payload.hasNext === false) break;
-//     }
-//     if (payload && payload.hasNext !== false) {
-//       yield { hasNext: false };
-//     }
-//   }
 pub fn parse_multipart_stream_chunk(chunk: String, content_type: &str) -> StreamedChunk {
-    todo!()
+    let re: Regex = Regex::new(r#"boundary="?([^=";]+)"?"#).unwrap();
+    let res = re.captures(content_type);
+
+    let boundary = if let Some(captures) = res {
+        if let Some(boundary_capture) = captures.get(1) {
+            boundary_capture.as_str()
+        } else {
+            "-"
+        }
+    } else {
+        "-"
+    };
+    let boundary_delimiter = format!("--{}", boundary);
+
+    let parts = chunk.split("\r\n\r\n").collect::<Vec<&str>>();
+    let sliced = parts.get(1);
+    if let Some(slice) = sliced {
+        let slice_parts = slice.split(boundary).collect::<Vec<&str>>();
+        if let Some(slice) = slice_parts.get(0) {
+            return StreamedChunk {
+                state: StreamState::InProgress,
+                payload: slice.trim_end().to_string(),
+            };
+        }
+    }
+
+    if chunk.contains(boundary_delimiter.as_str()) {
+        StreamedChunk {
+            state: StreamState::InProgress,
+            payload: String::default(),
+        }
+    } else {
+        StreamedChunk {
+            state: StreamState::Final,
+            payload: String::default(),
+        }
+    }
 }
 
 pub fn parse_application_json_chunk(chunk: String) -> StreamedChunk {
-    StreamedChunk { state: StreamState::Final, payload: chunk }
+    StreamedChunk {
+        state: StreamState::Final,
+        payload: chunk,
+    }
 }

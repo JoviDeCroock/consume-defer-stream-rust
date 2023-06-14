@@ -1,6 +1,6 @@
-use serde::{Deserialize};
-use serde_json::{Value};
-use json_dotpath::{DotPaths};
+use json_dotpath::DotPaths;
+use serde::Deserialize;
+use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -18,7 +18,7 @@ pub struct ExecutionResult {
 }
 
 fn merge_path(path: &[Value]) -> String {
-    path.iter().fold(String::new(),|a, b| {
+    path.iter().fold(String::new(), |a, b| {
         if a.is_empty() {
             b.to_string().replace('"', "")
         } else {
@@ -39,7 +39,6 @@ fn merge(a: &mut Value, b: Value) {
     }
 }
 
-
 impl ExecutionResult {
     pub fn finalize(&mut self) -> &mut Self {
         self.has_next = false;
@@ -48,61 +47,63 @@ impl ExecutionResult {
 
     // TODO: error-support and merging errors
     pub fn merge(&mut self, streamed_result: &StreamedExecutionResult) -> &mut Self {
-        streamed_result.incremental.iter().for_each(|incremental_payload| {
-            match incremental_payload {
-                IncrementalPayload::DeferPayload(payload) => {
-                    if payload.path.is_empty() {
-                        let deferred_data = payload.data.as_object().unwrap();
+        if let Some(incremental_result) = streamed_result.incremental.as_ref() {
+            incremental_result
+                .iter()
+                .for_each(|incremental_payload| match incremental_payload {
+                    IncrementalPayload::DeferPayload(payload) => {
+                        if payload.path.is_empty() {
+                            let deferred_data = payload.data.as_object().unwrap();
 
+                            if let Value::Object(obj) = &self.data {
+                                let mut execution_data = obj.clone();
+                                deferred_data.keys().for_each(|key| {
+                                    let value = deferred_data.get(key).expect("Key to be present");
+                                    execution_data.insert(key.to_owned(), value.to_owned());
+                                });
+                                self.data = Value::Object(execution_data);
+                            }
+                        } else if let Value::Object(obj) = &self.data {
+                            let mut execution_data = obj.clone();
+                            let path = merge_path(&payload.path);
+
+                            let data = execution_data.dot_get::<Value>(&path);
+                            if let Ok(Some(mut item)) = data {
+                                merge(&mut item, payload.data.clone());
+                                let _ = execution_data.dot_set(&path, item);
+                                self.data = Value::Object(execution_data);
+                            }
+                        }
+
+                        if let Some(mut errors) = payload.errors.clone() {
+                            if let Some(mut execution_errors) = self.errors.clone() {
+                                execution_errors.append(&mut errors);
+                                self.errors = Some(execution_errors)
+                            } else {
+                                self.errors = Some(errors.clone());
+                            }
+                        }
+                    }
+                    IncrementalPayload::StreamPayload(payload) => {
                         if let Value::Object(obj) = &self.data {
                             let mut execution_data = obj.clone();
-                            deferred_data.keys().for_each(|key| {
-                                let value = deferred_data.get(key).expect("Key to be present");
-                                execution_data.insert(key.to_owned(), value.to_owned());
-                            });
+                            let path = merge_path(&payload.path);
+
+                            let _ = execution_data.dot_set(&path, payload.items.get(0).unwrap());
                             self.data = Value::Object(execution_data);
                         }
-                    } else if let Value::Object(obj) = &self.data {
-                        let mut execution_data = obj.clone();
-                        let path = merge_path(&payload.path);
 
-                        let data = execution_data.dot_get::<Value>(&path);
-                        if let Ok(Some(mut item)) = data {
-                            merge(&mut item, payload.data.clone());
-                            let _ = execution_data.dot_set(&path, item);
-                            self.data = Value::Object(execution_data);
+                        if let Some(mut errors) = payload.errors.clone() {
+                            if let Some(mut execution_errors) = self.errors.clone() {
+                                execution_errors.append(&mut errors);
+                                self.errors = Some(execution_errors)
+                            } else {
+                                self.errors = Some(errors.clone());
+                            }
                         }
                     }
-
-                    if let Some(mut errors) = payload.errors.clone() {
-                        if let Some(mut execution_errors) = self.errors.clone() {
-                            execution_errors.append(&mut errors);
-                            self.errors = Some(execution_errors)
-                        } else {
-                            self.errors = Some(errors.clone());
-                        }
-                    }
-                }
-                IncrementalPayload::StreamPayload(payload) => {
-                    if let Value::Object(obj) = &self.data {
-                        let mut execution_data = obj.clone();
-                        let path = merge_path(&payload.path);
-
-                        let _ = execution_data.dot_set(&path, payload.items.get(0).unwrap());
-                        self.data = Value::Object(execution_data);
-                    }
-
-                    if let Some(mut errors) = payload.errors.clone() {
-                        if let Some(mut execution_errors) = self.errors.clone() {
-                            execution_errors.append(&mut errors);
-                            self.errors = Some(execution_errors)
-                        } else {
-                            self.errors = Some(errors.clone());
-                        }
-                    }
-                }
-            }
-        });
+                });
+        }
 
         self
     }
@@ -112,14 +113,14 @@ impl ExecutionResult {
 #[serde(untagged)]
 enum IncrementalPayload {
     DeferPayload(DeferPayload),
-    StreamPayload(StreamPayload)
+    StreamPayload(StreamPayload),
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamedExecutionResult {
     pub has_next: bool,
-    incremental: Vec<IncrementalPayload>
+    incremental: Option<Vec<IncrementalPayload>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -127,7 +128,7 @@ struct DeferPayload {
     data: Value,
     errors: Option<Vec<Value>>,
     _extensions: Option<Value>,
-    path: Vec<Value>
+    path: Vec<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -135,5 +136,5 @@ struct StreamPayload {
     items: Vec<Value>,
     errors: Option<Vec<Value>>,
     _extensions: Option<Value>,
-    path: Vec<Value>
+    path: Vec<Value>,
 }
