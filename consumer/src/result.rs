@@ -27,6 +27,18 @@ fn merge_path(path: &[Value]) -> String {
     })
 }
 
+fn merge(a: &mut Value, b: Value) {
+    match (a, b) {
+        (a @ &mut Value::Object(_), Value::Object(b)) => {
+            let a = a.as_object_mut().unwrap();
+            for (k, v) in b {
+                merge(a.entry(k).or_insert(Value::Null), v);
+            }
+        }
+        (a, b) => *a = b,
+    }
+}
+
 
 impl ExecutionResult {
     pub fn finalize(&mut self) -> &mut Self {
@@ -54,9 +66,12 @@ impl ExecutionResult {
                         let mut execution_data = obj.clone();
                         let path = merge_path(&payload.path);
 
-                        // TODO: this should be deep-merging
-                        let _ = execution_data.dot_set(&path, &payload.data);
-                        self.data = Value::Object(execution_data);
+                        let data = execution_data.dot_get::<Value>(&path);
+                        if let Ok(Some(mut item)) = data {
+                            merge(&mut item, payload.data.clone());
+                            let _ = execution_data.dot_set(&path, item);
+                            self.data = Value::Object(execution_data);
+                        }
                     }
 
                     if let Some(mut errors) = payload.errors.clone() {
@@ -73,7 +88,6 @@ impl ExecutionResult {
                         let mut execution_data = obj.clone();
                         let path = merge_path(&payload.path);
 
-                        // TODO: this should be deep-merging
                         let _ = execution_data.dot_set(&path, payload.items.get(0).unwrap());
                         self.data = Value::Object(execution_data);
                     }
