@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             parse_application_json_chunk(payload)
         };
 
-        if chunk.payload == "" {
+        if chunk.payload.is_empty() {
             continue;
         }
 
@@ -101,7 +101,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             parse_application_json_chunk(payload)
         };
 
-        if chunk.payload == "" {
+        if chunk.payload.is_empty() {
             continue;
         }
 
