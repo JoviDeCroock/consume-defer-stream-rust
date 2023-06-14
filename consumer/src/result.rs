@@ -13,6 +13,7 @@ pub enum GraphQLResult {
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionResult {
     pub data: Value,
+    pub errors: Option<Vec<Value>>,
     has_next: bool,
 }
 
@@ -48,7 +49,7 @@ impl ExecutionResult {
                                 execution_data.insert(key.to_owned(), value.to_owned());
                             });
                             self.data = Value::Object(execution_data);
-                        } 
+                        }
                     } else if let Value::Object(obj) = &self.data {
                         let mut execution_data = obj.clone();
                         let path = merge_path(&payload.path);
@@ -56,6 +57,15 @@ impl ExecutionResult {
                         // TODO: this should be deep-merging
                         let _ = execution_data.dot_set(&path, &payload.data);
                         self.data = Value::Object(execution_data);
+                    }
+
+                    if let Some(mut errors) = payload.errors.clone() {
+                        if let Some(mut execution_errors) = self.errors.clone() {
+                            execution_errors.append(&mut errors);
+                            self.errors = Some(execution_errors)
+                        } else {
+                            self.errors = Some(errors.clone());
+                        }
                     }
                 }
                 IncrementalPayload::StreamPayload(payload) => {
@@ -66,6 +76,15 @@ impl ExecutionResult {
                         // TODO: this should be deep-merging
                         let _ = execution_data.dot_set(&path, payload.items.get(0).unwrap());
                         self.data = Value::Object(execution_data);
+                    }
+
+                    if let Some(mut errors) = payload.errors.clone() {
+                        if let Some(mut execution_errors) = self.errors.clone() {
+                            execution_errors.append(&mut errors);
+                            self.errors = Some(execution_errors)
+                        } else {
+                            self.errors = Some(errors.clone());
+                        }
                     }
                 }
             }
@@ -92,11 +111,15 @@ pub struct StreamedExecutionResult {
 #[derive(Debug, Deserialize)]
 struct DeferPayload {
     data: Value,
+    errors: Option<Vec<Value>>,
+    _extensions: Option<Value>,
     path: Vec<Value>
 }
 
 #[derive(Debug, Deserialize)]
 struct StreamPayload {
     items: Vec<Value>,
+    errors: Option<Vec<Value>>,
+    _extensions: Option<Value>,
     path: Vec<Value>
 }

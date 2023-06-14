@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             },
         }
     }
-    println!("final result for query containing defer: {:?}", &final_result.unwrap().data);
+    println!("final result for query containing defer: {:?}", &final_result.unwrap());
 
     let body = r#"{
         "query": "query { alphabet @stream }"
@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             },
         }
     }
-    println!("final result for query containing stream: {:?}", &final_result.unwrap().data);
+    println!("final result for query containing stream: {:?}", &final_result.unwrap());
 
     Ok(())
 }
