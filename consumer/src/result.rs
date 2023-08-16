@@ -55,7 +55,6 @@ impl ExecutionResult {
         self
     }
 
-    // TODO: error-support and merging errors
     pub fn merge(&mut self, streamed_result: &StreamedExecutionResult) -> &mut Self {
         if let Some(incremental_result) = streamed_result.incremental.as_ref() {
             incremental_result
