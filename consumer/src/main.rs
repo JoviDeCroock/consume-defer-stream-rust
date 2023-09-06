@@ -54,6 +54,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         match chunk.state {
             StreamState::InProgress => {
                 let json = serde_json::from_str::<GraphQLResult>(&chunk.payload);
+                println!("{:?}", chunk.payload);
                 match json {
                     Ok(GraphQLResult::ExecutionResult(val)) => {
                         final_result = Some(val);

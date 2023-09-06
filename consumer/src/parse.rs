@@ -51,7 +51,7 @@ pub fn parse_multipart_stream_chunk(chunk: String, content_type: &str) -> Stream
     let sliced = parts.get(1);
     if let Some(slice) = sliced {
         let slice_parts = slice.split(boundary).collect::<Vec<&str>>();
-        if let Some(slice) = slice_parts.get(0) {
+        if let Some(slice) = slice_parts.first() {
             return StreamedChunk {
                 state: StreamState::InProgress,
                 payload: slice.trim_end().to_string(),
